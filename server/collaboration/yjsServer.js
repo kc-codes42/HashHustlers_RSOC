@@ -11,14 +11,31 @@ const cors = require('cors');
 const http = require('http');
 const WebSocket = require('ws');
 const { setupWSConnection } = require('y-websocket/bin/utils');
-const { executeCode } = require('../services/localExecutor');
+const { executeCode: localExecute } = require('../services/localExecutor');
+const { executeCode: remoteExecute } = require('../services/codeExecution');
+const { executeCode: judge0Execute } = require('../services/judge0Service');
 
 const app = express();
-const port = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5000;
 
 // 1. Middleware
-app.use(cors());
+const corsOptions = {
+  origin: process.env.FRONTEND_URL || '*',
+  methods: ['GET', 'POST'],
+  credentials: true
+};
+app.use(cors(corsOptions));
 app.use(express.json());
+
+// Helper to select execution engine
+const executeCode = async (language, code) => {
+  const engine = process.env.EXECUTION_ENGINE || 'local';
+  console.log(`[Execution] Using engine: ${engine} for ${language}`);
+  
+  if (engine === 'judge0') return await judge0Execute(language, code);
+  if (engine === 'piston') return await remoteExecute(language, code);
+  return await localExecute(language, code);
+};
 
 // 2. Health Check
 app.get('/', (req, res) => {
@@ -46,7 +63,17 @@ app.post('/api/run', async (req, res) => {
 });
 
 // 4. Setup HTTP & WebSocket Server
-const server = http.createServer(app);
+const server = app.listen(PORT, () => {
+  console.log(`
+  🚀 HashHustlers Backend live at http://localhost:${PORT}
+  ----------------------------------------------------
+  Collaboration: ws://localhost:${PORT}
+  Code Execution: POST http://localhost:${PORT}/api/run
+  
+  System initialized and ready.
+  `);
+});
+
 const wss = new WebSocket.Server({ server });
 
 wss.on('connection', (conn, req) => {
@@ -63,15 +90,9 @@ wss.on('connection', (conn, req) => {
   });
 });
 
-// 5. Start Server
-server.listen(port, () => {
-  console.log(`
-  🚀 HashHustlers Backend live at http://localhost:${port}
-  ----------------------------------------------------
-  Collaboration: ws://localhost:${port}
-  Code Execution: POST http://localhost:${port}/api/run
-  
-  System initialized and ready.
-  `);
+// 5. Signal handling
+process.on('SIGTERM', () => {
+  server.close();
+  process.exit(0);
 });
 

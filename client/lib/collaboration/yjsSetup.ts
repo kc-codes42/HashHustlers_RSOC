@@ -20,7 +20,8 @@ export const getYjsSetup = (roomId: string) => {
   const { WebsocketProvider } = require("y-websocket");
 
   const doc = new Y.Doc();
-  const provider = new WebsocketProvider("ws://localhost:5000", roomId, doc);
+  const backendWsUrl = process.env.NEXT_PUBLIC_WS_BACKEND_URL || "ws://localhost:5000";
+  const provider = new WebsocketProvider(backendWsUrl, roomId, doc);
   const sharedText = doc.getText("monaco");
   const sharedLogs = doc.getArray("terminal_logs");
   const sharedState = doc.getMap("state");
