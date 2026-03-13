@@ -10,7 +10,7 @@ import * as Y from "yjs";
 export const getYjsSetup = (roomId: string) => {
   // Ensure this only runs on the client
   if (typeof window === 'undefined') {
-    return { doc: new Y.Doc(), provider: null as any, sharedText: null as any };
+    return { doc: new Y.Doc(), provider: null as any, sharedText: null as any, sharedLogs: null as any };
   }
 
   // We import y-websocket dynamically here to avoid server-side evaluation issues
@@ -20,8 +20,10 @@ export const getYjsSetup = (roomId: string) => {
   const { WebsocketProvider } = require("y-websocket");
 
   const doc = new Y.Doc();
-  const provider = new WebsocketProvider("ws://localhost:1234", roomId, doc);
+  const provider = new WebsocketProvider("ws://localhost:5000", roomId, doc);
   const sharedText = doc.getText("monaco");
+  const sharedLogs = doc.getArray("terminal_logs");
+  const sharedState = doc.getMap("state");
 
-  return { doc, provider, sharedText };
+  return { doc, provider, sharedText, sharedLogs, sharedState };
 };

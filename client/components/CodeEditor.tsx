@@ -13,6 +13,7 @@ const Editor = dynamic(() => import('@monaco-editor/react'), {
   ),
 });
 
+
 interface CodeEditorProps {
   roomId: string; // Required for collaboration
   code: string;
@@ -24,6 +25,7 @@ interface CodeEditorProps {
   onRun: () => void;
   onUserJoin?: (userName: string) => void;
   onUserLeave?: (userName: string) => void;
+  isRunning?: boolean;
 }
 
 const LANGUAGES = [
@@ -61,7 +63,8 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   onThemeChange,
   onRun,
   onUserJoin,
-  onUserLeave
+  onUserLeave,
+  isRunning = false
 }) => {
   const editorRef = useRef<any>(null);
   const providerRef = useRef<any>(null);
@@ -74,29 +77,39 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     };
   }, []);
 
-  const handleEditorDidMount = async (editor: any) => {
+  const handleEditorDidMount = async (editor: any, monaco: any) => {
     editorRef.current = editor;
     
     try {
       const { MonacoBinding } = await import('y-monaco');
       const { getYjsSetup } = await import('@/lib/collaboration/yjsSetup');
 
+      // 0. Register Keyboard Shortcut (Ctrl + Enter)
+      editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
+        onRun();
+      });
+
       // 1. Setup Yjs collaboration for the specific room
       const { provider, sharedText } = getYjsSetup(roomId);
       providerRef.current = provider;
 
       // 2. Setup Awareness (User Presence)
-      // Use crypto.getRandomValues for better randomness to avoid same color in multiple tabs
-      const randomBuffer = new Uint32Array(1);
-      window.crypto.getRandomValues(randomBuffer);
-      const randomIndex = randomBuffer[0] % COLORS.length;
-      const randomColor = COLORS[randomIndex];
-      const randomName = `User ${Math.floor(Math.random() * 1000)}`;
+      const { getOrCreateUser } = await import('@/lib/userProfile');
+      const userProfile = getOrCreateUser();
       
-      provider.awareness.setLocalStateField('user', {
-        name: randomName,
-        color: randomColor,
-      });
+      if (userProfile) {
+        provider.awareness.setLocalStateField('user', {
+          name: userProfile.name,
+          color: userProfile.color,
+        });
+        console.log(`[Presence] Identity: ${userProfile.name} | Color: ${userProfile.color} | ID: ${userProfile.id}`);
+      } else {
+        // Fallback for SSR/Errors
+        provider.awareness.setLocalStateField('user', {
+          name: 'Anonymous',
+          color: '#888888',
+        });
+      }
 
       // 3. Setup Awareness Listeners for notifications
       provider.awareness.on('change', ({ added, updated, removed }: any) => {
@@ -113,7 +126,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
         });
       });
 
-      console.log(`[Presence] Identity: ${randomName} | Color: ${randomColor}`);
+
 
       // 4. Bind Monaco to Yjs with Awareness enabled for Cursors/Selections
       const binding = new MonacoBinding(
@@ -169,12 +182,24 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
         <div className="flex items-center gap-3">
           <button
             onClick={onRun}
-            className="flex items-center gap-2 bg-green-600 hover:bg-green-500 text-white text-xs font-bold px-4 py-1.5 rounded transition-colors active:scale-95 shadow-lg shadow-green-900/20"
+            disabled={isRunning}
+            className={`flex items-center gap-2 text-white text-xs font-bold px-4 py-1.5 rounded transition-colors active:scale-95 shadow-lg shadow-green-900/20 ${
+              isRunning ? 'bg-zinc-700 cursor-not-allowed' : 'bg-green-600 hover:bg-green-500'
+            }`}
           >
-            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M8 5.14v14l11-7-11-7z" />
-            </svg>
-            Run Code
+            {isRunning ? (
+              <>
+                <div className="w-3 h-3 border-2 border-zinc-500 border-t-white rounded-full animate-spin" />
+                Running...
+              </>
+            ) : (
+              <>
+                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M8 5.14v14l11-7-11-7z" />
+                </svg>
+                Run Code
+              </>
+            )}
           </button>
         </div>
       </div>

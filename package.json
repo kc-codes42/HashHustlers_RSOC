@@ -9,6 +9,7 @@
     "firebase": "^12.10.0",
     "monaco-editor": "^0.55.1",
     "socket.io-client": "^4.8.3",
+    "uuid": "^13.0.0",
     "y-websocket": "^3.0.0",
     "yjs": "^13.6.29"
   }
