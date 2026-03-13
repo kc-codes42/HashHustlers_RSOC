@@ -22,6 +22,8 @@ interface CodeEditorProps {
   onLanguageChange: (language: string) => void;
   onThemeChange: (theme: string) => void;
   onRun: () => void;
+  onUserJoin?: (userName: string) => void;
+  onUserLeave?: (userName: string) => void;
 }
 
 const LANGUAGES = [
@@ -38,9 +40,16 @@ const THEMES = [
   { label: 'HC Black', value: 'hc-black' },
 ];
 
+const COLORS = [
+  '#ff5f56', '#ffbd2e', '#27c93f', '#7f0df2', '#00d1ff', '#ff00ff', '#ffa500', '#00ff00', '#00ffff', '#ffff00'
+];
+
 /**
- * Advanced Monaco Code Editor with Yjs Realtime Collaboration.
- * SSR Fix: Libraries that depend on 'window' are imported dynamically.
+ * Advanced Monaco Code Editor with Yjs Realtime Collaboration & User Awareness.
+ * Integrates:
+ * - Collaborative Cursors
+ * - Selection Highlights
+ * - Random User Colors & Identity
  */
 const CodeEditor: React.FC<CodeEditorProps> = ({ 
   roomId,
@@ -50,28 +59,24 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   onChange, 
   onLanguageChange, 
   onThemeChange,
-  onRun 
+  onRun,
+  onUserJoin,
+  onUserLeave
 }) => {
   const editorRef = useRef<any>(null);
   const providerRef = useRef<any>(null);
   const bindingRef = useRef<any>(null);
 
-  // Handle cleanup of collaboration instances
   useEffect(() => {
     return () => {
-      if (bindingRef.current) {
-        bindingRef.current.destroy();
-      }
-      if (providerRef.current) {
-        providerRef.current.destroy();
-      }
+      if (bindingRef.current) bindingRef.current.destroy();
+      if (providerRef.current) providerRef.current.destroy();
     };
   }, []);
 
   const handleEditorDidMount = async (editor: any) => {
     editorRef.current = editor;
     
-    // SSR SAFE: Dynamically importing browser-only libraries inside mount handler
     try {
       const { MonacoBinding } = await import('y-monaco');
       const { getYjsSetup } = await import('@/lib/collaboration/yjsSetup');
@@ -80,7 +85,37 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
       const { provider, sharedText } = getYjsSetup(roomId);
       providerRef.current = provider;
 
-      // 2. Bind Monaco editor model to the Yjs shared text
+      // 2. Setup Awareness (User Presence)
+      // Use crypto.getRandomValues for better randomness to avoid same color in multiple tabs
+      const randomBuffer = new Uint32Array(1);
+      window.crypto.getRandomValues(randomBuffer);
+      const randomIndex = randomBuffer[0] % COLORS.length;
+      const randomColor = COLORS[randomIndex];
+      const randomName = `User ${Math.floor(Math.random() * 1000)}`;
+      
+      provider.awareness.setLocalStateField('user', {
+        name: randomName,
+        color: randomColor,
+      });
+
+      // 3. Setup Awareness Listeners for notifications
+      provider.awareness.on('change', ({ added, updated, removed }: any) => {
+        added.forEach((clientId: number) => {
+          if (clientId !== provider.awareness.clientID) {
+            const state = provider.awareness.getStates().get(clientId);
+            const name = state?.user?.name || `Peer ${clientId}`;
+            onUserJoin?.(name);
+          }
+        });
+        removed.forEach((clientId: number) => {
+          // Note: We can't get state after removal usually, but we can log that someone left
+          onUserLeave?.(`A user (ID: ${clientId})`);
+        });
+      });
+
+      console.log(`[Presence] Identity: ${randomName} | Color: ${randomColor}`);
+
+      // 4. Bind Monaco to Yjs with Awareness enabled for Cursors/Selections
       const binding = new MonacoBinding(
         sharedText,
         editor.getModel()!,
@@ -167,6 +202,34 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
           }}
         />
       </div>
+
+      {/* Global CSS for Remote Selection Styles */}
+      <style jsx global>{`
+        .yRemoteSelection {
+          background-color: rgba(127, 13, 242, 0.3);
+        }
+        .yRemoteSelectionHead {
+          position: absolute;
+          border-left: orange solid 2px;
+          border-top: orange solid 2px;
+          border-bottom: orange solid 2px;
+          height: 100%;
+          box-sizing: border-box;
+        }
+        .yRemoteSelectionHead::after {
+          position: absolute;
+          content: attr(data-user-name);
+          background-color: orange;
+          color: white;
+          padding: 2px 4px;
+          border-radius: 2px;
+          font-size: 10px;
+          font-family: inherit;
+          white-space: nowrap;
+          top: -14px;
+          left: -2px;
+        }
+      `}</style>
     </div>
   );
 };
