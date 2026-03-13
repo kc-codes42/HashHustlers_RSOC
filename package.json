@@ -1,0 +1,15 @@
+{
+  "name": "hashhustlers-monorepo",
+  "version": "1.0.0",
+  "scripts": {
+    "start:collab": "node server/collaboration/yjsServer.js"
+  },
+  "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
+    "firebase": "^12.10.0",
+    "monaco-editor": "^0.55.1",
+    "socket.io-client": "^4.8.3",
+    "y-websocket": "^3.0.0",
+    "yjs": "^13.6.29"
+  }
+}
