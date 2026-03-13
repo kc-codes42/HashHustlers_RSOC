@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 
 /**
  * HashHustlers Unified Backend Server
@@ -11,9 +11,9 @@ const cors = require('cors');
 const http = require('http');
 const WebSocket = require('ws');
 const { setupWSConnection } = require('y-websocket/bin/utils');
-const { executeCode: localExecute } = require('../services/localExecutor');
-const { executeCode: remoteExecute } = require('../services/codeExecution');
-const { executeCode: judge0Execute } = require('../services/judge0Service');
+const { executeCode: localExecute } = require('./services/localExecutor');
+const { executeCode: remoteExecute } = require('./services/codeExecution');
+const { executeCode: judge0Execute } = require('./services/judge0Service');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
